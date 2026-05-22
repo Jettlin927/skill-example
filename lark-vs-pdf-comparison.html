@@ -1,0 +1,1515 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>对照与处方 · lark-bugs-assigned-to-me 与 pdf 两个 skill 的拆解</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,300..900,0..100,0..1&family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..700&family=JetBrains+Mono:wght@400;500;700&family=Noto+Serif+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --paper: #efe7d4;
+      --paper-warm: #ece2cb;
+      --paper-deep: #e2d6b8;
+      --paper-cool: #e6e0cf;
+      --ink: #1a1611;
+      --ink-soft: #3a3127;
+      --ink-muted: #7e7158;
+      --rule: #b9ac8d;
+      --rule-soft: #d6cbac;
+
+      --rust: #b34a22;
+      --rust-deep: #7a2a10;
+      --sage: #4c5a32;
+      --sage-deep: #2f3a1f;
+      --indigo: #2a3d5f;
+      --highlight: #f0d367;
+      --bruise: #5e3a3a;
+
+      --code-ink: #2a1f12;
+      --code-paper: #e5d9bb;
+      --code-night: #1a1611;
+      --code-night-ink: #ddd0b2;
+
+      --shadow: 0 1px 0 var(--rule-soft), 0 18px 32px -22px rgba(26, 22, 17, 0.25);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'Newsreader', 'Noto Serif SC', Georgia, serif;
+      font-weight: 380;
+      font-size: 18px;
+      line-height: 1.65;
+      font-feature-settings: "ss01", "ss02";
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+      opacity: 0.5;
+      mix-blend-mode: multiply;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.10 0 0 0 0 0.08 0 0 0 0 0.06 0 0 0 0.18 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 2;
+      background:
+        radial-gradient(ellipse 120% 100% at 50% 0%, transparent 55%, rgba(58, 49, 39, 0.08)),
+        radial-gradient(ellipse 120% 90% at 50% 100%, transparent 60%, rgba(58, 49, 39, 0.06));
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    .layout {
+      position: relative;
+      z-index: 3;
+      display: grid;
+      grid-template-columns: 310px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    aside {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      padding: 56px 36px 40px;
+      border-right: 1px solid var(--rule);
+      background:
+        linear-gradient(180deg, rgba(255, 248, 232, 0.4), rgba(255, 248, 232, 0)),
+        var(--paper-warm);
+      overflow: auto;
+    }
+    aside::-webkit-scrollbar { width: 6px; }
+    aside::-webkit-scrollbar-thumb { background: var(--rule); }
+
+    .colophon {
+      margin-bottom: 28px;
+      padding-bottom: 22px;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .stamp {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px 5px;
+      border: 1px solid var(--rust-deep);
+      border-radius: 2px;
+      color: var(--rust-deep);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      transform: rotate(-1.5deg);
+    }
+    .stamp .dot { width: 5px; height: 5px; background: var(--rust-deep); border-radius: 50%; }
+
+    .colophon-meta {
+      margin-top: 18px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--ink-muted);
+      line-height: 1.7;
+    }
+    .colophon-meta b { color: var(--ink-soft); font-weight: 700; }
+
+    .toc-label {
+      margin: 8px 0 14px;
+      font-family: 'Fraunces', serif;
+      font-size: 11px;
+      font-weight: 600;
+      font-variation-settings: "opsz" 9, "SOFT" 100, "WONK" 0;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+    }
+
+    nav { display: grid; gap: 2px; }
+    nav a {
+      display: grid;
+      grid-template-columns: 28px 1fr auto;
+      align-items: baseline;
+      padding: 9px 0;
+      border-bottom: 1px dotted transparent;
+      color: var(--ink-soft);
+      font-family: 'Newsreader', 'Noto Serif SC', serif;
+      font-size: 15px;
+      line-height: 1.3;
+      transition: color 200ms ease, transform 200ms ease;
+    }
+    nav a .num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--ink-muted);
+      letter-spacing: 0.04em;
+    }
+    nav a .pg {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--ink-muted);
+    }
+    nav a:hover { color: var(--rust-deep); transform: translateX(2px); }
+    nav a:hover .num, nav a:hover .pg { color: var(--rust-deep); }
+    nav a.active { color: var(--rust-deep); }
+
+    main { padding: 72px clamp(36px, 6vw, 96px) 96px; max-width: 1180px; }
+
+    .hero {
+      position: relative;
+      margin-bottom: 88px;
+      padding-bottom: 64px;
+      border-bottom: 2px solid var(--ink);
+    }
+    .hero-meta {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 22px;
+      align-items: baseline;
+      margin-bottom: 28px;
+      padding-bottom: 12px;
+      border-bottom: 1px dotted var(--rule);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+    }
+    .hero-meta .center { text-align: center; letter-spacing: 0.4em; }
+
+    .hero h2 {
+      margin: 0 0 28px;
+      font-family: 'Fraunces', 'Noto Serif SC', serif;
+      font-weight: 360;
+      font-style: italic;
+      font-variation-settings: "opsz" 144, "SOFT" 30, "WONK" 1;
+      font-size: clamp(48px, 7.5vw, 108px);
+      line-height: 0.98;
+      letter-spacing: -0.025em;
+      color: var(--ink);
+    }
+    .hero h2 .accent {
+      font-style: normal;
+      font-weight: 500;
+      color: var(--rust);
+      position: relative;
+      display: inline-block;
+    }
+    .hero h2 .accent::after {
+      content: "";
+      position: absolute;
+      left: -4%;
+      right: -2%;
+      bottom: 8%;
+      height: 38%;
+      background: var(--highlight);
+      mix-blend-mode: multiply;
+      z-index: -1;
+      transform: skewX(-4deg) rotate(-0.5deg);
+    }
+    .hero h2 .nb {
+      font-family: 'Newsreader', serif;
+      font-weight: 200;
+      font-style: italic;
+      color: var(--ink-soft);
+    }
+
+    .dek {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 56px;
+      align-items: start;
+      margin-top: 32px;
+    }
+    .dek p {
+      margin: 0;
+      font-family: 'Newsreader', 'Noto Serif SC', serif;
+      font-size: 20px;
+      font-weight: 380;
+      line-height: 1.55;
+      color: var(--ink-soft);
+    }
+    .dek p::first-letter {
+      font-family: 'Fraunces', 'Noto Serif SC', serif;
+      font-weight: 500;
+      font-variation-settings: "opsz" 144, "SOFT" 50;
+      font-size: 4.6em;
+      line-height: 0.86;
+      float: left;
+      padding: 8px 12px 0 0;
+      color: var(--rust);
+    }
+
+    .pull {
+      padding: 22px 0 22px 24px;
+      border-left: 2px solid var(--ink);
+      font-family: 'Fraunces', 'Noto Serif SC', serif;
+      font-style: italic;
+      font-weight: 380;
+      font-variation-settings: "opsz" 36, "SOFT" 100;
+      font-size: 22px;
+      line-height: 1.35;
+      color: var(--ink);
+    }
+    .pull cite {
+      display: block;
+      margin-top: 14px;
+      font-family: 'JetBrains Mono', monospace;
+      font-style: normal;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+    }
+
+    .section { position: relative; margin: 0 0 96px; scroll-margin-top: 32px; }
+    .section-head {
+      display: grid;
+      grid-template-columns: 88px 1fr;
+      gap: 28px;
+      align-items: end;
+      margin-bottom: 36px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--ink);
+    }
+    .chapter-no {
+      font-family: 'Fraunces', serif;
+      font-weight: 280;
+      font-style: italic;
+      font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1;
+      font-size: 96px;
+      line-height: 0.85;
+      color: var(--rust);
+      letter-spacing: -0.04em;
+    }
+    .section-head .meta {
+      align-self: start;
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      margin-bottom: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+    }
+    .section-head .meta::after { content: ""; flex: 1; height: 1px; background: var(--rule); }
+    .section-head h2 {
+      grid-column: 2;
+      margin: 0;
+      font-family: 'Fraunces', 'Noto Serif SC', serif;
+      font-weight: 420;
+      font-variation-settings: "opsz" 144, "SOFT" 30, "WONK" 0;
+      font-size: clamp(34px, 4.5vw, 56px);
+      line-height: 1.06;
+      letter-spacing: -0.018em;
+      color: var(--ink);
+    }
+    .section-head h2 em {
+      font-style: italic;
+      font-weight: 320;
+      color: var(--ink-soft);
+    }
+
+    .prose p {
+      margin: 0 0 18px;
+      max-width: 64ch;
+    }
+    .prose p + p { text-indent: 1.4em; }
+    .prose strong { font-weight: 700; color: var(--ink); }
+    .prose em { font-style: italic; color: var(--ink-soft); }
+    .prose code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.86em;
+      padding: 1px 6px;
+      background: var(--code-paper);
+      border: 1px solid var(--rule-soft);
+      border-radius: 2px;
+      color: var(--code-ink);
+    }
+
+    /* Diptych */
+    .diptych {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      margin: 24px 0 12px;
+      border-top: 1px solid var(--ink);
+      border-bottom: 1px solid var(--ink);
+    }
+    .diptych > div {
+      padding: 28px 28px 32px;
+      position: relative;
+      min-width: 0;
+      overflow: hidden;
+    }
+    .diptych > div + div { border-left: 1px solid var(--rule); }
+    .diptych .panel-tag {
+      display: inline-block;
+      margin-bottom: 14px;
+      padding: 3px 8px 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--paper);
+    }
+    .diptych .pdf .panel-tag { background: var(--sage-deep); }
+    .diptych .lark .panel-tag { background: var(--bruise); }
+    .diptych h3 {
+      margin: 0 0 16px;
+      font-family: 'Fraunces', 'Noto Serif SC', serif;
+      font-weight: 420;
+      font-style: italic;
+      font-variation-settings: "opsz" 72, "SOFT" 50;
+      font-size: 28px;
+      line-height: 1.1;
+      color: var(--ink);
+    }
+    .diptych .filetree {
+      margin: 0 0 16px;
+      padding: 16px 18px;
+      background: var(--paper-cool);
+      border: 1px solid var(--rule-soft);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12.5px;
+      line-height: 1.7;
+      color: var(--code-ink);
+      white-space: pre;
+      overflow-x: auto;
+    }
+    .diptych .meter {
+      display: grid;
+      grid-template-columns: 110px 1fr 56px;
+      gap: 10px;
+      align-items: center;
+      padding: 6px 0;
+      border-bottom: 1px dotted var(--rule);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--ink-soft);
+    }
+    .diptych .meter:last-child { border-bottom: none; }
+    .diptych .meter .label { letter-spacing: 0.04em; }
+    .diptych .meter .bar {
+      height: 6px;
+      background: var(--rule-soft);
+      position: relative;
+      overflow: hidden;
+    }
+    .diptych .meter .bar > span {
+      display: block;
+      height: 100%;
+      background: var(--rust);
+    }
+    .diptych .pdf .meter .bar > span { background: var(--sage); }
+    .diptych .lark .meter .bar > span { background: var(--rust); }
+    .diptych .meter .num { text-align: right; font-weight: 700; color: var(--ink); }
+
+    .verdict {
+      margin: 36px 0 8px;
+      padding: 18px 22px;
+      background: var(--paper-cool);
+      border-left: 4px solid var(--ink);
+      font-family: 'Fraunces', 'Noto Serif SC', serif;
+      font-size: 18px;
+      line-height: 1.5;
+      color: var(--ink);
+    }
+    .verdict .label {
+      display: inline-block;
+      margin-right: 10px;
+      padding: 2px 8px 3px;
+      background: var(--ink);
+      color: var(--paper);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      vertical-align: 2px;
+    }
+
+    /* Comparison cards (Section II) */
+    .compare-card {
+      display: grid;
+      grid-template-columns: 200px 1fr 1fr;
+      gap: 0;
+      margin-bottom: 28px;
+      border: 1px solid var(--rule);
+      background: var(--paper-warm);
+    }
+    .compare-card .topic {
+      padding: 24px 22px;
+      background: var(--ink);
+      color: var(--paper);
+      border-right: 1px solid var(--rule);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .compare-card .topic .num {
+      font-family: 'Fraunces', serif;
+      font-style: italic;
+      font-weight: 320;
+      font-size: 48px;
+      line-height: 1;
+      color: var(--highlight);
+      margin-bottom: 16px;
+    }
+    .compare-card .topic h3 {
+      margin: 0;
+      font-family: 'Fraunces', 'Noto Serif SC', serif;
+      font-weight: 480;
+      font-size: 20px;
+      line-height: 1.2;
+      color: var(--paper);
+    }
+    .compare-card .topic .sub {
+      margin-top: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--paper-deep);
+    }
+    .compare-card .side {
+      padding: 22px 22px 24px;
+      min-width: 0;
+      overflow: hidden;
+    }
+    .compare-card .side + .side { border-left: 1px solid var(--rule); }
+    .compare-card .side .who {
+      display: inline-block;
+      margin-bottom: 10px;
+      padding: 2px 8px 3px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .compare-card .side.pdf .who { color: var(--sage-deep); border: 1px solid var(--sage-deep); }
+    .compare-card .side.lark .who { color: var(--bruise); border: 1px solid var(--bruise); }
+    .compare-card .side p { margin: 0 0 10px; font-size: 16.5px; line-height: 1.55; color: var(--ink-soft); }
+    .compare-card .side p:last-child { margin-bottom: 0; }
+    .compare-card .side code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.84em;
+      padding: 1px 5px;
+      background: var(--code-paper);
+      border: 1px solid var(--rule-soft);
+      color: var(--code-ink);
+    }
+    .compare-card .side .snippet {
+      margin: 10px 0 0;
+      padding: 10px 12px;
+      background: var(--code-night);
+      color: var(--code-night-ink);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px;
+      line-height: 1.55;
+      white-space: pre;
+      overflow-x: auto;
+    }
+
+    /* Pain points (Section III) */
+    .pains {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 18px;
+      margin: 12px 0 8px;
+    }
+    .pain {
+      padding: 22px 22px 24px;
+      background: var(--paper-warm);
+      border: 1px solid var(--rule);
+      border-top: 4px solid var(--bruise);
+      position: relative;
+    }
+    .pain.sev-high { border-top-color: var(--rust-deep); }
+    .pain.sev-med { border-top-color: var(--bruise); }
+    .pain.sev-low { border-top-color: var(--ink-muted); }
+    .pain .head {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .pain .id {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: var(--rust-deep);
+    }
+    .pain .sev {
+      margin-left: auto;
+      padding: 1px 6px 2px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--paper);
+      background: var(--bruise);
+    }
+    .pain.sev-high .sev { background: var(--rust-deep); }
+    .pain.sev-low .sev { background: var(--ink-muted); }
+    .pain h3 {
+      margin: 0 0 8px;
+      font-family: 'Fraunces', 'Noto Serif SC', serif;
+      font-weight: 460;
+      font-style: italic;
+      font-size: 19px;
+      line-height: 1.25;
+      color: var(--ink);
+    }
+    .pain p { margin: 0 0 8px; font-size: 15.5px; line-height: 1.55; color: var(--ink-soft); }
+    .pain p:last-child { margin-bottom: 0; }
+    .pain .where {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px dotted var(--rule);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10.5px;
+      color: var(--ink-muted);
+      letter-spacing: 0.03em;
+    }
+    .pain .where b { color: var(--ink-soft); font-weight: 700; }
+    .pain code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.86em;
+      padding: 0 4px;
+      background: var(--code-paper);
+      color: var(--code-ink);
+    }
+
+    /* Prescription tree (Section IV) */
+    .prescription {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 36px;
+      align-items: start;
+      margin-top: 12px;
+    }
+    .prescription > * { min-width: 0; }
+    .prescription .tree {
+      padding: 26px 28px;
+      background: var(--code-night);
+      color: var(--code-night-ink);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      line-height: 1.75;
+      white-space: pre;
+      overflow-x: auto;
+    }
+    .prescription .tree .added { color: #c4d97a; }
+    .prescription .tree .kept { color: #ddd0b2; }
+    .prescription .tree .note { color: #8b8466; font-style: italic; }
+    .prescription .roles {
+      display: grid;
+      gap: 14px;
+    }
+    .role {
+      padding: 16px 18px;
+      background: var(--paper-warm);
+      border: 1px solid var(--rule);
+    }
+    .role h4 {
+      margin: 0 0 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--rust-deep);
+      letter-spacing: 0.02em;
+    }
+    .role h4 .tag {
+      margin-left: 8px;
+      padding: 1px 6px 2px;
+      font-size: 9.5px;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--paper);
+      background: var(--sage-deep);
+    }
+    .role h4 .tag.transform { background: var(--indigo); }
+    .role h4 .tag.execute { background: var(--rust-deep); }
+    .role h4 .tag.validate { background: var(--bruise); }
+    .role h4 .tag.config { background: var(--ink-muted); }
+    .role p {
+      margin: 0;
+      font-size: 14.5px;
+      line-height: 1.55;
+      color: var(--ink-soft);
+    }
+    .role p + p { margin-top: 6px; }
+
+    /* Phase timeline */
+    .phases {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0;
+      margin: 16px 0 8px;
+      border-top: 1px solid var(--ink);
+      border-bottom: 1px solid var(--ink);
+    }
+    .phase {
+      padding: 22px 20px 24px;
+      border-right: 1px solid var(--rule);
+      position: relative;
+    }
+    .phase:last-child { border-right: none; }
+    .phase .num {
+      font-family: 'Fraunces', serif;
+      font-style: italic;
+      font-weight: 320;
+      font-variation-settings: "opsz" 144, "SOFT" 60;
+      font-size: 64px;
+      line-height: 0.85;
+      color: var(--rust);
+      letter-spacing: -0.04em;
+      margin-bottom: 12px;
+    }
+    .phase h3 {
+      margin: 0 0 10px;
+      font-family: 'Fraunces', 'Noto Serif SC', serif;
+      font-weight: 460;
+      font-size: 18px;
+      line-height: 1.2;
+      color: var(--ink);
+    }
+    .phase p { margin: 0 0 8px; font-size: 14.5px; line-height: 1.5; color: var(--ink-soft); }
+    .phase ul { margin: 0; padding-left: 18px; font-size: 13.5px; line-height: 1.55; color: var(--ink-soft); }
+    .phase ul li { margin-bottom: 4px; }
+    .phase ul li code { font-family: 'JetBrains Mono', monospace; font-size: 0.92em; color: var(--code-ink); }
+    .phase .effort {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px dotted var(--rule);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--ink-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .phase .effort b { color: var(--ink-soft); font-weight: 700; }
+
+    /* Closing benefits */
+    .benefits {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0;
+      border-top: 1px solid var(--ink);
+      border-bottom: 1px solid var(--ink);
+    }
+    .benefit {
+      padding: 28px 24px 30px;
+      border-right: 1px solid var(--rule);
+    }
+    .benefit:last-child { border-right: none; }
+    .benefit .stat {
+      font-family: 'Fraunces', 'Noto Serif SC', serif;
+      font-weight: 480;
+      font-variation-settings: "opsz" 144, "SOFT" 30;
+      font-size: 56px;
+      line-height: 0.95;
+      letter-spacing: -0.02em;
+      color: var(--rust);
+      margin-bottom: 10px;
+    }
+    .benefit .stat sup { font-size: 0.42em; vertical-align: top; color: var(--ink-muted); margin-left: 2px; }
+    .benefit h3 {
+      margin: 0 0 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+    }
+    .benefit p {
+      margin: 0;
+      font-size: 15.5px;
+      line-height: 1.55;
+      color: var(--ink-soft);
+    }
+
+    .endnote {
+      margin: 80px 0 0;
+      padding-top: 32px;
+      border-top: 1px solid var(--ink);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--ink-muted);
+      letter-spacing: 0.06em;
+      text-align: center;
+    }
+    .endnote b { color: var(--ink-soft); font-weight: 700; }
+
+    /* Reveal animation */
+    .reveal { opacity: 0; transform: translateY(12px); transition: opacity 600ms ease, transform 600ms ease; }
+    .reveal.in { opacity: 1; transform: translateY(0); }
+
+    /* Exercise / pause block — "停一下, 动手想" */
+    .exercise {
+      position: relative;
+      margin: 0 0 96px;
+      padding: 40px 44px 38px;
+      background: var(--paper-deep);
+      border: 1px solid var(--ink);
+      border-left: 6px solid var(--highlight);
+      scroll-margin-top: 32px;
+    }
+    .exercise::before {
+      content: "✱";
+      position: absolute;
+      top: -20px;
+      left: 28px;
+      width: 40px;
+      height: 40px;
+      display: grid;
+      place-items: center;
+      background: var(--highlight);
+      border: 1px solid var(--ink);
+      color: var(--ink);
+      font-family: 'Fraunces', serif;
+      font-size: 22px;
+      font-weight: 500;
+    }
+    .exercise .ex-head {
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
+      margin: 0 0 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px dotted var(--rule);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+    }
+    .exercise .ex-tag {
+      padding: 3px 9px 4px;
+      background: var(--ink);
+      color: var(--highlight);
+    }
+    .exercise .ex-time {
+      margin-left: auto;
+      color: var(--rust-deep);
+      letter-spacing: 0.16em;
+    }
+    .exercise h3 {
+      margin: 0 0 8px;
+      font-family: 'Fraunces', 'Noto Serif SC', serif;
+      font-weight: 460;
+      font-style: italic;
+      font-variation-settings: "opsz" 72, "SOFT" 50;
+      font-size: clamp(26px, 2.8vw, 32px);
+      line-height: 1.18;
+      color: var(--ink);
+    }
+    .exercise .ex-lead {
+      margin: 0 0 18px;
+      font-family: 'Newsreader', 'Noto Serif SC', serif;
+      font-size: 16.5px;
+      line-height: 1.55;
+      color: var(--ink-soft);
+    }
+    .exercise ol.ex-questions {
+      counter-reset: q;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .exercise ol.ex-questions > li {
+      counter-increment: q;
+      position: relative;
+      margin: 12px 0;
+      padding: 16px 18px 16px 64px;
+      background: var(--paper);
+      border: 1px solid var(--rule-soft);
+      font-family: 'Newsreader', 'Noto Serif SC', serif;
+      font-size: 17px;
+      line-height: 1.55;
+      color: var(--ink);
+    }
+    .exercise ol.ex-questions > li::before {
+      content: "Q" counter(q);
+      position: absolute;
+      left: 18px;
+      top: 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: var(--rust);
+    }
+    .exercise ol.ex-questions > li strong {
+      font-weight: 700;
+      color: var(--ink);
+      background: var(--highlight);
+      padding: 0 4px;
+    }
+    .exercise .ex-hint {
+      margin-top: 18px;
+      padding: 14px 16px;
+      background: var(--paper-warm);
+      border-left: 2px solid var(--ink-muted);
+      font-family: 'Fraunces', 'Noto Serif SC', serif;
+      font-style: italic;
+      font-weight: 380;
+      font-size: 15.5px;
+      line-height: 1.55;
+      color: var(--ink-soft);
+    }
+    .exercise .ex-hint b {
+      display: inline-block;
+      margin-right: 8px;
+      padding: 1px 7px 2px;
+      background: var(--ink);
+      color: var(--highlight);
+      font-family: 'JetBrains Mono', monospace;
+      font-style: normal;
+      font-weight: 700;
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    @media (max-width: 1080px) {
+      .layout { grid-template-columns: 1fr; }
+      aside { position: relative; height: auto; border-right: none; border-bottom: 1px solid var(--rule); }
+      .diptych, .pains, .prescription, .phases, .benefits { grid-template-columns: 1fr; }
+      .compare-card { grid-template-columns: 1fr; }
+      .compare-card .topic { border-right: none; border-bottom: 1px solid var(--rule); }
+      .compare-card .side + .side { border-left: none; border-top: 1px solid var(--rule); }
+      .prescription .tree { font-size: 11.5px; }
+      .exercise { padding: 32px 22px 28px; }
+      .exercise ol.ex-questions > li { padding: 14px 14px 14px 52px; }
+      .exercise ol.ex-questions > li::before { left: 14px; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <aside>
+    <div class="colophon">
+      <span class="stamp"><span class="dot"></span>对照 · 处方</span>
+      <div class="colophon-meta">
+        <b>SUBJECT</b><br>
+        lark-bugs-assigned-to-me<br>
+        ×<br>
+        pdf<br>
+        <br>
+        <b>FRAME</b><br>
+        Skill 工具化成熟度评估<br>
+        <br>
+        <b>OUTCOME</b><br>
+        SKILL.md 瘦身路线图
+      </div>
+    </div>
+
+    <div class="toc-label">目 录</div>
+    <nav aria-label="目录">
+      <a href="#intro"><span class="num">00</span><span>序言</span><span class="pg">i</span></a>
+      <a href="#shape"><span class="num">01</span><span>两份目录的形状</span><span class="pg">02</span></a>
+      <a href="#parallel"><span class="num">02</span><span>同一类决定, 两种载体</span><span class="pg">06</span></a>
+      <a href="#diagnose"><span class="num">03</span><span>lark skill 的脆弱点</span><span class="pg">14</span></a>
+      <a href="#prescribe"><span class="num">04</span><span>建议的目标结构</span><span class="pg">22</span></a>
+      <a href="#phases"><span class="num">05</span><span>落地路线</span><span class="pg">28</span></a>
+      <a href="#benefits"><span class="num">06</span><span>预期收益</span><span class="pg">32</span></a>
+    </nav>
+  </aside>
+
+  <main>
+
+    <header class="hero reveal" id="intro">
+      <div class="hero-meta">
+        <span>Skill / Diptych 04</span>
+        <span class="center">— 对照 与 处方 —</span>
+        <span>2026 · 05</span>
+      </div>
+      <h2>
+        <span class="nb">两个</span> skill,<br>
+        <span class="accent">同一条</span> 路<span class="nb">.</span>
+      </h2>
+      <div class="dek">
+        <p>
+          把 <code style="font-family:'JetBrains Mono',monospace;font-size:0.82em;padding:1px 5px;background:var(--code-paper);border:1px solid var(--rule-soft);">lark-bugs-assigned-to-me</code> 放在 <code style="font-family:'JetBrains Mono',monospace;font-size:0.82em;padding:1px 5px;background:var(--code-paper);border:1px solid var(--rule-soft);">pdf</code> 旁边比对, 是为了让"还差什么"显形.
+          pdf 已经把"AI 判断 / 文档查阅 / 脚本执行"分到三层; lark 还在用一份 15KB 的提示词承担全部.
+          这份对照不是评判, 是诊断 — 它要回答的是: 下一步把哪一块先抽出来, 才最划算.
+        </p>
+        <blockquote class="pull">
+          一个 skill 的稳定度, 取决于它把多少机械动作交给了脚本, 而不是交给了模型的记忆.
+          <cite>— 拆解 03 / 复盘笔记</cite>
+        </blockquote>
+      </div>
+    </header>
+
+    <!-- ============= Section 01 ============= -->
+    <section id="shape" class="section">
+      <header class="section-head reveal">
+        <span class="chapter-no">i</span>
+        <div>
+          <div class="meta"><span>Chapter 01</span></div>
+          <h2>两份目录的<em>形状</em></h2>
+        </div>
+      </header>
+
+      <div class="prose reveal">
+        <p>
+          打开两个文件夹, 先不看内容, 只看树.
+          pdf skill 的结构告诉你"这是一个工具包"; lark skill 的结构告诉你"这是一份说明书".
+          形状差异决定了它们各自的脆弱点位.
+        </p>
+      </div>
+
+      <div class="diptych reveal">
+        <div class="pdf">
+          <span class="panel-tag">参 照 — PDF</span>
+          <h3>三层结构, 各司其职</h3>
+<div class="filetree">pdf/
+├── SKILL.md          8 KB   入口 · 主流程 · 资源导航
+├── forms.md         12 KB   表单填写深流程 (条件加载)
+├── reference.md     17 KB   高级库 / CLI 速查 (条件加载)
+├── LICENSE.txt
+└── scripts/                 inspect → transform → validate → execute
+    ├── check_fillable_fields.py
+    ├── extract_form_field_info.py
+    ├── extract_form_structure.py
+    ├── convert_pdf_to_images.py
+    ├── check_bounding_boxes.py
+    ├── create_validation_image.py
+    ├── fill_fillable_fields.py
+    └── fill_pdf_form_with_annotations.py</div>
+          <div class="meter">
+            <span class="label">SKILL.md 主流程</span>
+            <span class="bar"><span style="width:22%"></span></span>
+            <span class="num">22%</span>
+          </div>
+          <div class="meter">
+            <span class="label">references/</span>
+            <span class="bar"><span style="width:48%"></span></span>
+            <span class="num">48%</span>
+          </div>
+          <div class="meter">
+            <span class="label">scripts/</span>
+            <span class="bar"><span style="width:30%"></span></span>
+            <span class="num">30%</span>
+          </div>
+        </div>
+
+        <div class="lark">
+          <span class="panel-tag">本 案 — LARK</span>
+          <h3>单文件, 一份 15KB 的提示词</h3>
+<div class="filetree">lark-bugs-assigned-to-me/
+└── SKILL.md         15 KB
+    ├── 触发条件清单
+    ├── ZenBoard 四个常量
+    ├── DOT 流程图
+    ├── Step 1 — Step 8 工作流
+    ├── 五段 lark-cli bash 调用
+    ├── 一段 bun -e 过滤代码
+    ├── 完整 markdown 回复模板
+    ├── 禁忌清单 / 必做清单
+    ├── Quick Reference 表
+    ├── Common Mistakes 表
+    └── Identity Resolution Rule
+                                (无 references/, 无 scripts/)</div>
+          <div class="meter">
+            <span class="label">SKILL.md 主流程</span>
+            <span class="bar"><span style="width:100%"></span></span>
+            <span class="num">100%</span>
+          </div>
+          <div class="meter">
+            <span class="label">references/</span>
+            <span class="bar"><span style="width:0%"></span></span>
+            <span class="num">0%</span>
+          </div>
+          <div class="meter">
+            <span class="label">scripts/</span>
+            <span class="bar"><span style="width:0%"></span></span>
+            <span class="num">0%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="verdict reveal">
+        <span class="label">读数</span>
+        pdf skill 已经完成"工具化"; lark skill 仍停在"提示词阶段" — 这不是缺陷, 是它当前的成熟度.
+        把它向 pdf 的形状靠近一步, 就是这次优化的目标.
+      </div>
+    </section>
+
+    <!-- ============= Pause · Exercise 01 ============= -->
+    <aside class="exercise reveal" id="ex-01" aria-label="练习一 · 形状对照">
+      <div class="ex-head">
+        <span class="ex-tag">停一下 · Exercise 01</span>
+        <span class="ex-time">≈ 10 MIN · 写下来再继续</span>
+      </div>
+      <h3>看完两份目录, 在我开始拆解之前 —</h3>
+      <p class="ex-lead">下面三个问题都没有标准答案. 重要的是把答案<em>写在纸上</em>, 等会儿讲"同一类决定, 两种载体"时, 你的答案会自动和卡片对照, 不一致的地方就是收获.</p>
+      <ol class="ex-questions">
+        <li>这两份 skill 都在解决什么<strong>共同问题</strong>? 写出至少 3 条它们的相似处 — 触发条件、流程节点、产出形式, 任何角度都行.</li>
+        <li>假设只看目录结构, <strong>不看内容</strong> — PDF skill 已经做对了哪几件事是 lark 还没做的? 答案应该至少包含两个文件夹或文件类型.</li>
+        <li>如果今天就要动 lark 的目录, 你会先加哪一类文件或文件夹? 为什么是这一类, 而不是别的?</li>
+      </ol>
+      <div class="ex-hint"><b>讲师提示</b>这一题的目的是让大家在"看到答案之前先长出自己的判断". 不要急着翻页 — 给他们 8-10 分钟写, 然后请 2-3 位同事念出自己的 Q2 答案, 再进入下一章.</div>
+    </aside>
+
+    <!-- ============= Section 02 ============= -->
+    <section id="parallel" class="section">
+      <header class="section-head reveal">
+        <span class="chapter-no">ii</span>
+        <div>
+          <div class="meta"><span>Chapter 02</span></div>
+          <h2>同一类决定<em>, 两种载体</em></h2>
+        </div>
+      </header>
+
+      <div class="prose reveal">
+        <p>
+          两个 skill 在做的事可以一一对位: 都要分流、都要抽字段、都要拿数据、都要在写入前自查、都要产出稳定结果.
+          差别只在"这一步交给谁完成". 下面五张卡, 左 = pdf, 右 = lark.
+        </p>
+      </div>
+
+      <article class="compare-card reveal">
+        <div class="topic">
+          <div>
+            <div class="num">01</div>
+            <h3>流程分流</h3>
+            <div class="sub">Branch decision</div>
+          </div>
+        </div>
+        <div class="side pdf">
+          <span class="who">PDF</span>
+          <p>第一步必须运行 <code>scripts/check_fillable_fields.py</code>, 返回布尔判断, 决定走 AcroForm 还是 annotation 分支.</p>
+          <p>分支错了, 后续全部返工 — 所以这一步交给程序, 不交给模型.</p>
+        </div>
+        <div class="side lark">
+          <span class="who">LARK</span>
+          <p>"是否 bug 池"的判断写在第二步散文里: "Find the owner field — name matches <code>责任人 / 负责人 / 指派人 …</code> AND <code>type == "user"</code>".</p>
+          <p>模型每次自己读字段列表去配, 没有结构校验脚本. 同一个表换个字段命名就可能错判.</p>
+        </div>
+      </article>
+
+      <article class="compare-card reveal">
+        <div class="topic">
+          <div>
+            <div class="num">02</div>
+            <h3>身份 / 凭证解析</h3>
+            <div class="sub">Identity resolution</div>
+          </div>
+        </div>
+        <div class="side pdf">
+          <span class="who">PDF</span>
+          <p>不涉及身份, 跳过. 但同类 — 字段 ID 解析 — 完全由 <code>extract_form_field_info.py</code> 封装, 处理父子层级、checkbox/radio 合法值.</p>
+        </div>
+        <div class="side lark">
+          <span class="who">LARK</span>
+          <p>SKILL.md 用散文描述: <em>"Parse <code>data.user.open_id</code> on success, <strong>or</strong> extract <code>ou_[A-Za-z0-9_-]+</code> from a <code>need_user_authorization</code> error message."</em></p>
+<div class="snippet">lark-cli contact +get-user --as user 2>&amp;1
+# 模型每次自己挑这段两路解析
+# 一旦错误消息文案变, regex 没人改</div>
+        </div>
+      </article>
+
+      <article class="compare-card reveal">
+        <div class="topic">
+          <div>
+            <div class="num">03</div>
+            <h3>数据获取 + 分页</h3>
+            <div class="sub">Fetch &amp; paginate</div>
+          </div>
+        </div>
+        <div class="side pdf">
+          <span class="who">PDF</span>
+          <p>无分页问题, 但 <code>fill_fillable_fields.py</code> 在写入前会再次拉取字段信息, 自校验 — 程序兜底.</p>
+        </div>
+        <div class="side lark">
+          <span class="who">LARK</span>
+          <p>用 <code>--limit 200</code>, 然后在文末加一句注脚: <em>"如果 pool exceeds 200, records past the cutoff drop silently"</em>.</p>
+          <p>分页静默丢, 用户那边表现成"我的 bug 怎么少了". 这是教科书级别的应该脚本化的脆弱点.</p>
+        </div>
+      </article>
+
+      <article class="compare-card reveal">
+        <div class="topic">
+          <div>
+            <div class="num">04</div>
+            <h3>写入前校验</h3>
+            <div class="sub">Preflight</div>
+          </div>
+        </div>
+        <div class="side pdf">
+          <span class="who">PDF</span>
+          <p><code>check_bounding_boxes.py</code> 检查框相交、字体高度不够; <code>fill_fillable_fields.py</code> 校验 field_id 存在、checkbox/radio 值合法.</p>
+          <p>错误信息可行动, 直接指向哪个字段需要修.</p>
+        </div>
+        <div class="side lark">
+          <span class="who">LARK</span>
+          <p><code>+record-upsert</code> 之前没有 preflight. 全靠 SKILL.md 的禁令清单 — "Don't update before user yes" — 由模型自觉.</p>
+          <p>没有机制确认 record_id 对应的就是用户刚选的 bug, 没有机制确认 <code>状态</code> 字段枚举值合法.</p>
+        </div>
+      </article>
+
+      <article class="compare-card reveal">
+        <div class="topic">
+          <div>
+            <div class="num">05</div>
+            <h3>产出稳定</h3>
+            <div class="sub">Stable output</div>
+          </div>
+        </div>
+        <div class="side pdf">
+          <span class="who">PDF</span>
+          <p>产出是 PDF 文件本身. 格式由 <code>fill_pdf_form_with_annotations.py</code> 保证. 不存在"模型这次少写一句"的可能.</p>
+        </div>
+        <div class="side lark">
+          <span class="who">LARK</span>
+          <p>产出是一段 markdown 回复, 包含索引表 + 每条 bug 完整正文 + 收尾句. 模板写在 SKILL.md 散文里, 每次靠模型重新拼.</p>
+<div class="snippet">### ZB-XXXX — &lt;标题&gt;
+
+- **优先级 / 状态 / 类型 / 端 / 复现概率**: …
+- **前置条件**: …
+- **复现步骤**: &lt;verbatim&gt;
+- **实际结果** / **预期结果** / **复现环境**
+- **附件**: 2 张截图 / 日志 (未下载)</div>
+          <p>10-15 条 × 完整正文 — 每次模型从零拼一遍, 偶尔会漏字段或省略 — 而 SKILL.md 明确禁止省略.</p>
+        </div>
+      </article>
+    </section>
+
+    <!-- ============= Section 03 ============= -->
+    <section id="diagnose" class="section">
+      <header class="section-head reveal">
+        <span class="chapter-no">iii</span>
+        <div>
+          <div class="meta"><span>Chapter 03</span></div>
+          <h2>lark skill 的<em>脆弱点</em></h2>
+        </div>
+      </header>
+
+      <div class="prose reveal">
+        <p>
+          把上面五对差异落到 lark skill 自己, 一共能数出七个有概率出问题的位置.
+          按严重度排, 越靠前的越值得优先抽走.
+        </p>
+      </div>
+
+      <div class="pains reveal">
+        <div class="pain sev-high">
+          <div class="head"><span class="id">P-01</span><span class="sev">高</span></div>
+          <h3>分页静默丢</h3>
+          <p><code>--limit 200</code> 之后, 超出的记录直接消失. SKILL.md 只提示"如果数量看起来异常, 告知用户可能超出 200" — 这是事后通知, 不是兜底.</p>
+          <div class="where"><b>触发场景:</b> bug 池累计超过 200 条; 或多人同时上报后压栈.</div>
+        </div>
+
+        <div class="pain sev-high">
+          <div class="head"><span class="id">P-02</span><span class="sev">高</span></div>
+          <h3>+record-upsert 无 preflight</h3>
+          <p>用户说"改吧"之后, 模型直接拼 <code>--record-id R --json '{"状态":"待验收"}'</code>. 没有任何机制确认 R 就是用户刚才挑的那条, 也没有确认 状态 字段还接受"待验收"这个枚举.</p>
+          <div class="where"><b>触发场景:</b> 用户在多条 bug 之间来回切; 表配置在生产中调整了状态枚举.</div>
+        </div>
+
+        <div class="pain sev-high">
+          <div class="head"><span class="id">P-03</span><span class="sev">高</span></div>
+          <h3>身份解析靠 prose 描述正则</h3>
+          <p>"<em>parse data.user.open_id <strong>or</strong> extract ou_[…] from error message</em>" — 这是一段需要分支处理的字符串解析, 写在散文里, 由模型每次自己实现.</p>
+          <div class="where"><b>触发场景:</b> Lark 错误消息文案微调; 用户多账号切换.</div>
+        </div>
+
+        <div class="pain sev-med">
+          <div class="head"><span class="id">P-04</span><span class="sev">中</span></div>
+          <h3>5 段 bash 由 AI 每次拼装</h3>
+          <p>wiki resolve, field-list, get-user, record-list, record-upsert — 五段 lark-cli, 共享一组参数. 任何一段漏 <code>--view-id</code> 或 <code>--format json</code> 都会让后续步骤无声偏轨.</p>
+          <div class="where"><b>触发场景:</b> 模型记忆漂移; <code>MSYS_NO_PATHCONV=1</code> 在 Windows git-bash 上忘加.</div>
+        </div>
+
+        <div class="pain sev-med">
+          <div class="head"><span class="id">P-05</span><span class="sev">中</span></div>
+          <h3>回复模板靠记忆复刻</h3>
+          <p>索引表 8 列 + 每条 bug 8 个文本字段 + 收尾句 — 全部以散文规范写在 Step 5. 模型重组 10-15 条时漏一项, SKILL.md 没有机器校验.</p>
+          <div class="where"><b>触发场景:</b> 上下文紧张; 模型为节省 token 自行省略 "复现环境" 这类经常空的字段.</div>
+        </div>
+
+        <div class="pain sev-med">
+          <div class="head"><span class="id">P-06</span><span class="sev">中</span></div>
+          <h3>字段定位无结构校验</h3>
+          <p>owner / status / priority 三个字段的存在性靠模型读 <code>+field-list</code> 输出后自己判. 一旦字段被改名, 整个 skill 静默退化成"全部 bug 都展示".</p>
+          <div class="where"><b>触发场景:</b> 表 schema 微调; 跨项目克隆到字段命名不一致的 bug 池.</div>
+        </div>
+
+        <div class="pain sev-low">
+          <div class="head"><span class="id">P-07</span><span class="sev">低</span></div>
+          <h3>常量散落在 SKILL.md</h3>
+          <p>WIKI_URL / WIKI_TOKEN / TABLE_ID / VIEW_ID 四个常量硬编码在 SKILL.md. "克隆到另一个仓库时改这四个值" — 这是配置, 应该独立成文件.</p>
+          <div class="where"><b>触发场景:</b> skill 跨仓库复用; 多个 bug 池切换.</div>
+        </div>
+
+        <div class="pain sev-low">
+          <div class="head"><span class="id">P-08</span><span class="sev">低</span></div>
+          <h3>用户确认的语义匹配在散文里</h3>
+          <p>"改吧 / 改 / 确认 / 是 / yes / 好 / done" 列了 10 来个等价词. 这是 UX 约定, 但散落在工作流第 8 步里, 容易和其它确认场景混淆.</p>
+          <div class="where"><b>触发场景:</b> 用户用了清单外的说法 ("行" "ok le"); 模型在 ambiguous 答复上仍上传.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============= Pause · Exercise 02 ============= -->
+    <aside class="exercise reveal" id="ex-02" aria-label="练习二 · 自己开处方">
+      <div class="ex-head">
+        <span class="ex-tag">停一下 · Exercise 02</span>
+        <span class="ex-time">≈ 12 MIN · 先想再翻页</span>
+      </div>
+      <h3>在看我的处方之前, 先开自己的 —</h3>
+      <p class="ex-lead">下一章是我给的处方, 但<em>你的不一定要和我一致</em>. 这一题的核心不是"猜对答案", 而是养成"看到痛点, 先想结构, 再想脚本"的肌肉记忆 — 这是优化任何 skill 时都用得上的判断顺序.</p>
+      <ol class="ex-questions">
+        <li>看完 P-01 到 P-08, 如果只能动 <strong>3 处</strong>, 你会动哪 3 处? 写出顺序, 并说明为什么是这个顺序 — 是按严重度、按依赖、还是按"修了能连带挡掉别的痛点"?</li>
+        <li>哪几个痛点可以被<strong>同一个脚本</strong>一次性挡住? 哪几个必须分开成不同的脚本? 想清楚分界, 你就理解了脚本的"职责颗粒度".</li>
+        <li>如果让你重新设计 lark skill 的目录, 你会画出什么样的<strong>树</strong>? 在纸上画一个 — 不需要写脚本名, 文件夹 + 大致用途就行. 等会儿和我的处方树并排放, 看看差在哪.</li>
+      </ol>
+      <div class="ex-hint"><b>讲师提示</b>这一题比 Exercise 01 难, 给到 10-12 分钟. 鼓励同事互相看一下彼此的树 — 不同人会有不同切法, 这个差异本身就是讨论素材. 收题时不要急着说"我的更对", 先问"你这样切的理由是什么", 然后再放出处方对照.</div>
+    </aside>
+
+    <!-- ============= Section 04 ============= -->
+    <section id="prescribe" class="section">
+      <header class="section-head reveal">
+        <span class="chapter-no">iv</span>
+        <div>
+          <div class="meta"><span>Chapter 04</span></div>
+          <h2>建议的<em>目标结构</em></h2>
+        </div>
+      </header>
+
+      <div class="prose reveal">
+        <p>
+          沿用 pdf skill 的 <code>inspect → transform → validate → execute</code> 四段, 把上面的痛点逐一落到脚本和 reference.
+          下面是建议的文件树, 绿色 = 新增, 米色 = 保留并瘦身.
+        </p>
+      </div>
+
+      <div class="prescription reveal">
+        <div class="tree"><span class="kept">lark-bugs-assigned-to-me/
+├── </span><span class="kept">SKILL.md</span><span class="note">      ~3 KB — 入口 + DOT 流程图 + 脚本调度</span><span class="kept">
+├── </span><span class="added">config.json</span><span class="note">    新增 — ZenBoard 四常量, 克隆改这里</span><span class="kept">
+├── </span><span class="added">references/</span><span class="kept">
+│   ├── </span><span class="added">lark-cli-contract.md</span><span class="note">  新增 — 5 段 bash 的输入输出契约</span><span class="kept">
+│   ├── </span><span class="added">triage-template.md</span><span class="note">    新增 — markdown 回复模板</span><span class="kept">
+│   └── </span><span class="added">multi-bug-brainstorm.md</span><span class="note"> 新增 — 4 问表 (按需加载)</span><span class="kept">
+└── </span><span class="added">scripts/</span><span class="kept">
+    ├── </span><span class="added">whoami.sh</span><span class="note">              inspect — 当前用户 open_id</span><span class="kept">
+    ├── </span><span class="added">resolve_pool.sh</span><span class="note">        inspect — URL/常量 → tokens</span><span class="kept">
+    ├── </span><span class="added">inspect_schema.py</span><span class="note">      validate — 字段存在性校验</span><span class="kept">
+    ├── </span><span class="added">fetch_my_bugs.py</span><span class="note">       transform — 分页 + 过滤 + 排序</span><span class="kept">
+    ├── </span><span class="added">format_triage.py</span><span class="note">       transform — JSON → markdown</span><span class="kept">
+    ├── </span><span class="added">preflight_update.py</span><span class="note">    validate — record_id + 状态枚举校验</span><span class="kept">
+    ├── </span><span class="added">mark_pending_qa.sh</span><span class="note">     execute — 状态改为 待验收</span><span class="kept">
+    └── </span><span class="added">fetch_attachment.sh</span><span class="note">    execute — 按需下载附件</span></div>
+
+        <div class="roles">
+          <div class="role">
+            <h4>whoami.sh<span class="tag">inspect</span></h4>
+            <p>封装 <code>+get-user --as user</code>, 处理成功和 <code>need_user_authorization</code> 两路, stdout 只吐 open_id. <strong>替换 P-03.</strong></p>
+          </div>
+          <div class="role">
+            <h4>resolve_pool.sh<span class="tag">inspect</span></h4>
+            <p>读 <code>config.json</code> 或解析传入 URL, 输出 <code>base_token / table_id / view_id</code>. 同一个入口, 两种来源.</p>
+          </div>
+          <div class="role">
+            <h4>inspect_schema.py<span class="tag validate">validate</span></h4>
+            <p>跑 <code>+field-list</code>, 校验 owner/status/priority 都存在并定位 owner 的 positional index. 缺一就拒绝继续, 提示"不是 bug 池". <strong>替换 P-06.</strong></p>
+          </div>
+          <div class="role">
+            <h4>fetch_my_bugs.py<span class="tag transform">transform</span></h4>
+            <p>自动分页直到耗尽, 用 open_id 过滤, 按 P0→P3 排序, 输出固定 schema 的 JSON. <strong>替换 P-01 + P-04 的拼装风险.</strong></p>
+          </div>
+          <div class="role">
+            <h4>format_triage.py<span class="tag transform">transform</span></h4>
+            <p>读上一步 JSON, 吐出"索引表 + 完整正文 + 收尾句"的 markdown. 空字段写 <code>—</code> 而非省略 — 由脚本兜底, 不靠模型记忆. <strong>替换 P-05.</strong></p>
+          </div>
+          <div class="role">
+            <h4>preflight_update.py<span class="tag validate">validate</span></h4>
+            <p>在 <code>mark_pending_qa</code> 之前检查: record_id 是否属于当前用户、状态枚举是否还接受"待验收"、是否会顺便覆盖其它字段. <strong>替换 P-02.</strong></p>
+          </div>
+          <div class="role">
+            <h4>mark_pending_qa.sh<span class="tag execute">execute</span></h4>
+            <p>极简包装, 单参数 <code>--record-id</code>. 不接受其它字段除非显式 <code>--fix-summary</code> / <code>--pr-link</code>. 拒绝静默写多余字段.</p>
+          </div>
+          <div class="role">
+            <h4>config.json<span class="tag config">config</span></h4>
+            <p>四常量 + 默认 <code>--limit</code> + 排序优先级映射. 克隆 skill 到新仓库时<em>只</em>改这里. <strong>替换 P-07.</strong></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="verdict reveal" style="margin-top:36px;">
+        <span class="label">效果</span>
+        SKILL.md 从 15 KB → ~3 KB, 内容收敛为: 触发条件 / DOT 流程图 / 每一步指向哪个脚本或 reference / 用户确认 UX. 其余全部归位.
+      </div>
+    </section>
+
+    <!-- ============= Section 05 ============= -->
+    <section id="phases" class="section">
+      <header class="section-head reveal">
+        <span class="chapter-no">v</span>
+        <div>
+          <div class="meta"><span>Chapter 05</span></div>
+          <h2>落地<em>路线</em></h2>
+        </div>
+      </header>
+
+      <div class="prose reveal">
+        <p>
+          不必一次性重构. 按"先抽掉最脆的, 再封装高频的, 最后瘦 SKILL.md"分四个阶段, 每个阶段都能独立跑通、独立见效.
+        </p>
+      </div>
+
+      <div class="phases reveal">
+        <div class="phase">
+          <div class="num">i</div>
+          <h3>抽 inspect 层</h3>
+          <p>把身份和分流封死, 解决 P-03 / P-06.</p>
+          <ul>
+            <li><code>whoami.sh</code></li>
+            <li><code>resolve_pool.sh</code></li>
+            <li><code>inspect_schema.py</code></li>
+            <li><code>config.json</code></li>
+          </ul>
+          <div class="effort"><b>预计:</b> 半天 · <b>风险:</b> 低</div>
+        </div>
+
+        <div class="phase">
+          <div class="num">ii</div>
+          <h3>抽 transform 层</h3>
+          <p>把分页 + 过滤 + 报告固定下来, 解决 P-01 / P-04 / P-05.</p>
+          <ul>
+            <li><code>fetch_my_bugs.py</code> 加自动分页</li>
+            <li>固定 JSON schema</li>
+            <li><code>format_triage.py</code> 接管模板</li>
+            <li><code>references/triage-template.md</code></li>
+          </ul>
+          <div class="effort"><b>预计:</b> 一天 · <b>风险:</b> 中 (要写测例)</div>
+        </div>
+
+        <div class="phase">
+          <div class="num">iii</div>
+          <h3>加 validate + execute</h3>
+          <p>用 preflight 兜住写入, 解决 P-02.</p>
+          <ul>
+            <li><code>preflight_update.py</code></li>
+            <li><code>mark_pending_qa.sh</code></li>
+            <li><code>fetch_attachment.sh</code> (按需)</li>
+            <li><code>references/lark-cli-contract.md</code></li>
+          </ul>
+          <div class="effort"><b>预计:</b> 半天 · <b>风险:</b> 低</div>
+        </div>
+
+        <div class="phase">
+          <div class="num">iv</div>
+          <h3>瘦 SKILL.md</h3>
+          <p>主流程留 DOT 图 + 指针, 其它全删. 解决 P-07 / P-08.</p>
+          <ul>
+            <li>15 KB → ~3 KB</li>
+            <li>禁令清单移交脚本</li>
+            <li>Common Mistakes 表保留前 3 条</li>
+            <li>multi-bug 4 问表挪到 references/</li>
+          </ul>
+          <div class="effort"><b>预计:</b> 一小时 · <b>风险:</b> 几乎为零</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============= Section 06 ============= -->
+    <section id="benefits" class="section">
+      <header class="section-head reveal">
+        <span class="chapter-no">vi</span>
+        <div>
+          <div class="meta"><span>Chapter 06</span></div>
+          <h2>预期<em>收益</em></h2>
+        </div>
+      </header>
+
+      <div class="benefits reveal">
+        <div class="benefit">
+          <div class="stat">80<sup>%</sup></div>
+          <h3>SKILL.md 体积</h3>
+          <p>从 15 KB → 约 3 KB, 主上下文不再每次塞满工作流细节. 多轮对话和并发场景下尤其明显.</p>
+        </div>
+        <div class="benefit">
+          <div class="stat">7<sup>项</sup></div>
+          <h3>脆弱点机器兜底</h3>
+          <p>分页、身份、枚举、字段定位、报告格式、preflight、常量 — 七个原本依赖模型记忆的位置移交脚本.</p>
+        </div>
+        <div class="benefit">
+          <div class="stat">1<sup>处</sup></div>
+          <h3>跨仓库克隆改动</h3>
+          <p>克隆 skill 到新 bug 池, 只动 <code>config.json</code>. 当前需要在 SKILL.md 散文里找四处替换.</p>
+        </div>
+      </div>
+
+      <div class="verdict reveal" style="margin-top:36px;">
+        <span class="label">原则</span>
+        这次优化不是把 lark skill 变得更复杂, 而是让它的复杂度从"模型每次都要记住"挪到"机器一次性写死".
+        判断力留在模型, 机械动作交给脚本 — 这是 pdf skill 给的样板, 也是这次重构唯一要复用的设计模式.
+      </div>
+    </section>
+
+    <div class="endnote">
+      <b>对照 与 处方</b> · 04 · skill diptych · 2026-05-22 · jettlin
+    </div>
+
+  </main>
+</div>
+
+<script>
+  // Reveal on scroll
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { rootMargin: '0px 0px -10% 0px', threshold: 0.05 });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+  // Active TOC
+  const links = document.querySelectorAll('aside nav a');
+  const sections = [...document.querySelectorAll('main section, main header.hero')];
+  const setActive = () => {
+    const y = window.scrollY + 120;
+    let cur = sections[0];
+    for (const s of sections) { if (s.offsetTop <= y) cur = s; }
+    links.forEach(l => l.classList.toggle('active', l.getAttribute('href') === '#' + cur.id));
+  };
+  window.addEventListener('scroll', setActive, { passive: true });
+  setActive();
+</script>
+</body>
+</html>
