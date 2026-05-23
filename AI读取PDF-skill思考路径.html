@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>读 · AI 读取 PDF Skill 的思考路径</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,700;0,9..144,900;1,9..144,400;1,9..144,500&family=Spectral:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400&family=Noto+Serif+SC:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.0/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --paper:        #f1ead8;
+    --paper-deep:   #e6dcc4;
+    --paper-card:   #ebe2cb;
+    --ink:          #1a1612;
+    --ink-soft:     #3a322a;
+    --ink-muted:    #6e6253;
+    --ink-faded:    #9a8d7a;
+    --rule:         #c9bda3;
+    --accent:       #8a2818;
+    --accent-soft:  #c7745c;
+    --accent-bg:    #efd9cd;
+    --ochre:        #a87f2c;
+    --ochre-bg:     #ecdfb6;
+    --moss:         #4a5d3a;
+    --moss-bg:      #d4d9bf;
+
+    --serif-display: 'Fraunces', 'Noto Serif SC', 'Songti SC', serif;
+    --serif-body:    'Spectral', 'Noto Serif SC', 'Songti SC', serif;
+    --serif-cn:      'Noto Serif SC', 'Songti SC', serif;
+    --mono:          'JetBrains Mono', 'SF Mono', Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--serif-body);
+    font-weight: 400;
+    font-size: 17px;
+    line-height: 1.75;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    background-image:
+      radial-gradient(circle at 20% 10%, rgba(168,127,44,0.04) 0%, transparent 40%),
+      radial-gradient(circle at 80% 80%, rgba(138,40,24,0.03) 0%, transparent 50%),
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence baseFrequency='0.9' numOctaves='2' seed='5'/><feColorMatrix values='0 0 0 0 0.10  0 0 0 0 0.09  0 0 0 0 0.07  0 0 0 0.045 0'/></filter><rect width='200' height='200' filter='url(%23n)' opacity='0.6'/></svg>");
+  }
+
+  /* ============ LAYOUT ============ */
+  .page {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 64px 56px 120px;
+  }
+  @media (max-width: 720px) {
+    .page { padding: 40px 22px 80px; }
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 240px;
+    column-gap: 56px;
+  }
+  @media (max-width: 960px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  .main { min-width: 0; }
+  aside.margin {
+    font-family: var(--serif-body);
+    font-style: italic;
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--ink-muted);
+    padding-top: 6px;
+  }
+  aside.margin .note {
+    padding: 10px 0 14px;
+    border-top: 1px solid var(--rule);
+  }
+  aside.margin .note:first-child { border-top: none; }
+  aside.margin .note .lbl {
+    font-style: normal;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 4px;
+  }
+  @media (max-width: 960px) {
+    aside.margin { display: none; }
+  }
+
+  /* ============ COVER ============ */
+  .cover {
+    padding-bottom: 56px;
+    margin-bottom: 64px;
+    border-bottom: 1px solid var(--ink);
+    position: relative;
+  }
+  .cover::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: -5px;
+    border-bottom: 1px solid var(--ink);
+  }
+  .cover-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 32px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .cover-tag::before, .cover-tag::after {
+    content: '';
+    height: 1px;
+    background: var(--accent);
+    flex: 0 0 28px;
+  }
+  .cover-tag::after { flex: 1; }
+
+  h1.title {
+    font-family: var(--serif-display);
+    font-weight: 300;
+    font-size: clamp(44px, 7vw, 88px);
+    line-height: 1.02;
+    letter-spacing: -0.025em;
+    margin: 0 0 18px;
+    color: var(--ink);
+    font-variation-settings: "SOFT" 100, "WONK" 1;
+  }
+  h1.title em {
+    font-style: italic;
+    font-weight: 400;
+    color: var(--accent);
+    font-variation-settings: "SOFT" 100, "WONK" 1;
+  }
+  h1.title .cn {
+    font-family: var(--serif-cn);
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+
+  .subtitle {
+    font-family: var(--serif-body);
+    font-style: italic;
+    font-weight: 300;
+    font-size: clamp(18px, 2vw, 22px);
+    color: var(--ink-soft);
+    max-width: 640px;
+    line-height: 1.45;
+    margin: 0 0 36px;
+  }
+  .byline {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 28px;
+  }
+  .byline span b {
+    font-weight: 500;
+    color: var(--ink);
+    margin-left: 6px;
+  }
+
+  /* ============ OPENING ============ */
+  .opening {
+    margin-bottom: 80px;
+  }
+  .opening p {
+    font-size: 18px;
+    line-height: 1.78;
+  }
+  .opening p:first-of-type::first-letter {
+    font-family: var(--serif-display);
+    font-weight: 700;
+    font-size: 84px;
+    line-height: 0.85;
+    float: left;
+    padding: 8px 14px 0 0;
+    color: var(--accent);
+    font-variation-settings: "SOFT" 0, "WONK" 1;
+  }
+  .pull {
+    font-family: var(--serif-display);
+    font-style: italic;
+    font-weight: 300;
+    font-size: clamp(26px, 3.5vw, 36px);
+    line-height: 1.3;
+    color: var(--ink-soft);
+    border-left: 2px solid var(--accent);
+    padding: 8px 0 8px 28px;
+    margin: 48px 0;
+    max-width: 720px;
+  }
+  .pull cite {
+    display: block;
+    font-family: var(--mono);
+    font-style: normal;
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    color: var(--ink-muted);
+    margin-top: 14px;
+    text-transform: uppercase;
+  }
+
+  /* ============ CHAPTERS ============ */
+  .chapter {
+    margin-top: 96px;
+    position: relative;
+  }
+  .chapter-head {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    column-gap: 32px;
+    align-items: start;
+    margin-bottom: 36px;
+  }
+  @media (max-width: 720px) {
+    .chapter-head { grid-template-columns: 80px 1fr; column-gap: 18px; }
+  }
+  .chapter-num {
+    font-family: var(--serif-display);
+    font-weight: 200;
+    font-size: clamp(72px, 10vw, 132px);
+    line-height: 0.85;
+    color: var(--accent);
+    font-variation-settings: "SOFT" 100, "WONK" 1;
+    letter-spacing: -0.03em;
+    text-align: right;
+    padding-right: 4px;
+  }
+  .chapter-title {
+    padding-top: 22px;
+  }
+  .chapter-title .lbl {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.28em;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 8px;
+  }
+  .chapter-title h2 {
+    font-family: var(--serif-display);
+    font-weight: 400;
+    font-size: clamp(28px, 3.8vw, 44px);
+    line-height: 1.12;
+    margin: 0;
+    color: var(--ink);
+    letter-spacing: -0.015em;
+  }
+  .chapter-title h2 .cn {
+    font-family: var(--serif-cn);
+    font-weight: 500;
+  }
+
+  h3 {
+    font-family: var(--serif-display);
+    font-weight: 500;
+    font-size: 22px;
+    color: var(--ink);
+    margin: 48px 0 16px;
+    letter-spacing: -0.005em;
+  }
+  h3 .cn { font-family: var(--serif-cn); }
+  h3::before {
+    content: '§';
+    color: var(--accent);
+    margin-right: 12px;
+    font-weight: 400;
+  }
+
+  p { margin: 16px 0; }
+  p strong, .cn strong { color: var(--ink); font-weight: 500; }
+
+  /* ============ MERMAID FRAME ============ */
+  .figure {
+    margin: 36px 0;
+    background: var(--paper-card);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: 28px 24px 20px;
+    position: relative;
+    box-shadow:
+      0 1px 0 var(--paper-deep),
+      0 0 0 1px var(--rule),
+      4px 4px 0 -2px var(--rule);
+  }
+  .figure::before {
+    content: '';
+    position: absolute;
+    top: 8px; left: 8px; right: 8px; bottom: 8px;
+    border: 1px solid var(--rule);
+    pointer-events: none;
+    opacity: 0.6;
+  }
+  .figure .mermaid {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    overflow-x: auto;
+  }
+  .figure-caption {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    text-align: center;
+    position: relative;
+    z-index: 1;
+  }
+  .figure-caption b {
+    color: var(--accent);
+    margin-right: 10px;
+  }
+
+  /* ============ CODE ============ */
+  pre.specimen {
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.65;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 22px 26px;
+    border-radius: 2px;
+    overflow-x: auto;
+    margin: 24px 0;
+    position: relative;
+  }
+  pre.specimen::before {
+    content: attr(data-label);
+    position: absolute;
+    top: -10px;
+    left: 20px;
+    background: var(--paper);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.22em;
+    padding: 0 8px;
+    text-transform: uppercase;
+  }
+  code.inline {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    background: var(--paper-card);
+    color: var(--accent);
+    padding: 1px 6px;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+  }
+
+  /* ============ TABLES ============ */
+  table.ledger {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 28px 0;
+    font-size: 15px;
+    font-family: var(--serif-body);
+  }
+  table.ledger th, table.ledger td {
+    border-bottom: 1px solid var(--rule);
+    padding: 14px 16px 14px 0;
+    text-align: left;
+    vertical-align: top;
+  }
+  table.ledger th {
+    font-family: var(--serif-display);
+    font-weight: 500;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 10px;
+  }
+  table.ledger td .cn, table.ledger th .cn { font-family: var(--serif-cn); }
+  table.ledger td:first-child {
+    font-family: var(--serif-cn);
+    font-weight: 500;
+    color: var(--ink);
+  }
+
+  /* ============ CALLOUTS ============ */
+  .callout {
+    margin: 28px 0;
+    padding: 22px 26px 22px 28px;
+    background: var(--accent-bg);
+    border-left: 3px solid var(--accent);
+    position: relative;
+    font-family: var(--serif-body);
+    font-size: 15.5px;
+    line-height: 1.65;
+  }
+  .callout.ochre { background: var(--ochre-bg); border-left-color: var(--ochre); }
+  .callout.moss  { background: var(--moss-bg);  border-left-color: var(--moss); }
+  .callout .head {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 8px;
+    display: block;
+  }
+  .callout.ochre .head { color: var(--ochre); }
+  .callout.moss  .head { color: var(--moss); }
+  .callout .cn { font-family: var(--serif-cn); }
+
+  /* ============ ASTERISM ============ */
+  .asterism {
+    text-align: center;
+    margin: 80px 0;
+    color: var(--accent);
+    font-family: var(--serif-display);
+    font-size: 24px;
+    letter-spacing: 1.5em;
+    text-indent: 1.5em;
+  }
+
+  /* ============ TOC ============ */
+  .toc {
+    margin: 56px 0 80px;
+    padding: 28px 32px;
+    border-top: 2px solid var(--ink);
+    border-bottom: 2px solid var(--ink);
+    background: transparent;
+  }
+  .toc-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 18px;
+    display: block;
+  }
+  .toc ol {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    counter-reset: ch;
+  }
+  .toc ol li {
+    counter-increment: ch;
+    padding: 8px 0;
+    border-bottom: 1px dotted var(--rule);
+    display: grid;
+    grid-template-columns: 32px 1fr auto;
+    align-items: baseline;
+    column-gap: 14px;
+    font-family: var(--serif-display);
+    font-size: 17px;
+  }
+  .toc ol li:last-child { border-bottom: none; }
+  .toc ol li::before {
+    content: counter(ch, upper-roman) ".";
+    font-family: var(--serif-display);
+    font-style: italic;
+    color: var(--accent);
+    font-size: 14px;
+  }
+  .toc ol li .cn { font-family: var(--serif-cn); font-weight: 500; }
+  .toc ol li a {
+    color: var(--ink);
+    text-decoration: none;
+    border-bottom: 0;
+  }
+  .toc ol li a:hover { color: var(--accent); }
+  .toc ol li .pg {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--ink-muted);
+    letter-spacing: 0.1em;
+  }
+
+  /* ============ COLOPHON ============ */
+  .colophon {
+    margin-top: 120px;
+    padding-top: 40px;
+    border-top: 1px solid var(--ink);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    line-height: 1.8;
+    color: var(--ink-muted);
+    letter-spacing: 0.06em;
+    text-align: center;
+  }
+  .colophon b { color: var(--ink); font-weight: 500; }
+  .colophon-orn {
+    text-align: center;
+    margin-bottom: 16px;
+    color: var(--accent);
+    font-size: 22px;
+    font-family: var(--serif-display);
+  }
+
+  /* ============ ANIMATIONS ============ */
+  @keyframes ink-fade {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .reveal { animation: ink-fade 1.1s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .reveal-1 { animation-delay: 0.05s; }
+  .reveal-2 { animation-delay: 0.18s; }
+  .reveal-3 { animation-delay: 0.32s; }
+  .reveal-4 { animation-delay: 0.48s; }
+  .reveal-5 { animation-delay: 0.62s; }
+
+  /* selection */
+  ::selection { background: var(--accent); color: var(--paper); }
+
+  /* small caps utility */
+  .sc {
+    font-family: var(--serif-display);
+    font-variant: small-caps;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+  }
+
+  /* layered figure */
+  .figure-pair {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+  @media (min-width: 880px) {
+    .figure-pair { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+<!-- ===================== COVER ===================== -->
+<header class="cover reveal reveal-1">
+  <div class="cover-tag">Skill Field Notes · 卷 一 · MMXXVI</div>
+  <h1 class="title">
+    A reader's<br>
+    <em>descent</em> into the<br>
+    <span class="cn">PDF Skill</span>
+  </h1>
+  <p class="subtitle">A field guide to the four-layer cognitive path an artificial reader walks—from a user's plain request, through indices and routing rules, down into the scripts that do the actual work.</p>
+  <div class="byline">
+    <span>EDITOR <b>Jettlin</b></span>
+    <span>SCRIBE <b>Claude Opus 4.7</b></span>
+    <span>PRESS <b>Skill 拆解</b></span>
+  </div>
+</header>
+
+<div class="grid">
+<main class="main">
+
+<!-- ===================== OPENING ===================== -->
+<section class="opening reveal reveal-2">
+  <p>当用户说"<span class="cn">帮我处理这个 PDF</span>"，AI 没有立刻动手。它走的是一条<strong>四层的思考路径</strong>——先匹配，再读手册，再分流，最后才下沉到具体的工具与脚本。<span class="cn">这条路径看上去像在读一本图书馆里的工具手册：先翻封面，再翻目录，再翻到对应的章节，最后跟着章节指引下到附录里的脚本。</span></p>
+
+  <p>这份文档把这条路径拆成四章，每一章对应一层判断。读完之后，你不仅能解释 AI 怎么用一个 skill，更能反过来推出：<em>怎样写一个 AI 用得顺的 skill。</em></p>
+
+  <blockquote class="pull">
+    "A skill is not a body of knowledge. It is a <em>route</em>—and the reader must be able to walk it without getting lost."
+    <cite>— Field Notes, Folio I</cite>
+  </blockquote>
+</section>
+
+<!-- ===================== TOC ===================== -->
+<nav class="toc reveal reveal-3">
+  <span class="toc-label">Contents · 目 录</span>
+  <ol>
+    <li><a href="#ch-overview"><span class="cn">总览 · 四层思考路径</span></a><span class="pg">FOLIO 01</span></li>
+    <li><a href="#ch-1"><span class="cn">触发匹配 · The Match</span></a><span class="pg">FOLIO 02</span></li>
+    <li><a href="#ch-2"><span class="cn">读取 SKILL.md · The Index</span></a><span class="pg">FOLIO 03</span></li>
+    <li><a href="#ch-3"><span class="cn">任务分流 · The Routing</span></a><span class="pg">FOLIO 04</span></li>
+    <li><a href="#ch-4"><span class="cn">深度执行 · The Descent</span></a><span class="pg">FOLIO 05</span></li>
+    <li><a href="#ch-5"><span class="cn">设计启示 · Lessons in Reverse</span></a><span class="pg">FOLIO 06</span></li>
+  </ol>
+</nav>
+
+<!-- ===================== CH OVERVIEW ===================== -->
+<section class="chapter reveal reveal-4" id="ch-overview">
+  <div class="chapter-head">
+    <div class="chapter-num">0</div>
+    <div class="chapter-title">
+      <span class="lbl">Folio 01 · Prologue</span>
+      <h2><span class="cn">四 层 思 考 路 径</span> <em style="font-style:italic;color:var(--ink-muted);font-weight:300;font-size:0.7em;">— at a glance</em></h2>
+    </div>
+  </div>
+
+  <p>AI 处理一个 PDF 请求不是"<span class="cn">看到文件 → 调 API</span>"那么直接。它经过<strong>四层判断</strong>，每一层都可能<strong>分流</strong>到不同的子流程。整张地图大致是这样的：</p>
+
+  <div class="figure">
+    <div class="mermaid">
+flowchart TD
+    U([用户请求<br/>"帮我合并这两个 PDF"]) --> L1
+    L1[第 I 层 · 触发匹配<br/><i>从 skill 清单里挑出一本</i>] --> L2
+    L2[第 II 层 · 读取 SKILL.md<br/><i>在脑子里建立索引</i>] --> L3
+    L3[第 III 层 · 任务分流<br/><i>把用户语言映射到章节</i>] --> L4
+    L4[第 IV 层 · 深度执行<br/><i>下到子文档 + 调脚本</i>] --> Done([完成 · 输出结果])
+
+    classDef layer fill:#ebe2cb,stroke:#1a1612,stroke-width:1.2px,color:#1a1612,font-family:Noto Serif SC
+    classDef start fill:#efd9cd,stroke:#8a2818,stroke-width:1.5px,color:#1a1612,font-family:Noto Serif SC
+    class L1,L2,L3,L4 layer
+    class U,Done start
+    </div>
+    <div class="figure-caption"><b>Fig. 00</b> the cognitive descent · 从地表到附录的下行</div>
+  </div>
+
+  <div class="callout ochre">
+    <span class="head">Marginalia · 旁注</span>
+    <span class="cn">这四层<strong>并非每次都全走</strong>。简单任务（提取文字）可能在第二层就结束；复杂任务（填表单）才会一路走到第四层最深处。</span>
+  </div>
+</section>
+
+<!-- ===================== CH 1 ===================== -->
+<section class="chapter reveal reveal-5" id="ch-1">
+  <div class="chapter-head">
+    <div class="chapter-num">I</div>
+    <div class="chapter-title">
+      <span class="lbl">Folio 02 · Layer One</span>
+      <h2>The Match · <span class="cn">触发匹配</span></h2>
+    </div>
+  </div>
+
+  <p>AI 启动时手里有一份"<strong class="cn">可用 skill 清单</strong>"。每个 skill 只暴露 <code class="inline">name</code> 和 <code class="inline">description</code> 两个字段——<strong>AI 还没读 SKILL.md，只能看简介</strong>。这一层只做一件事：</p>
+
+  <blockquote class="pull">
+    用户这句话，<em>命中</em>了哪个 skill 的 description？
+  </blockquote>
+
+  <div class="figure">
+    <div class="mermaid">
+flowchart LR
+    U[用户说话] --> P[AI 解析意图]
+    P --> M{扫描全部<br/>description}
+    M -->|关键词"PDF / .pdf"| PDF[pdf skill]
+    M -->|关键词"Excel / 表格"| XLS[excel skill]
+    M -->|关键词"飞书 / lark"| LARK[lark-bugs skill]
+    M -->|都不命中| DEF[通用工具<br/>Read · Bash · Edit]
+    PDF --> NEXT[载入 SKILL.md<br/>进入第 II 层]
+
+    classDef d fill:#ebe2cb,stroke:#1a1612,color:#1a1612,font-family:Noto Serif SC
+    classDef hit fill:#efd9cd,stroke:#8a2818,stroke-width:1.6px,color:#1a1612,font-family:Noto Serif SC
+    classDef next fill:#d4d9bf,stroke:#4a5d3a,color:#1a1612,font-family:Noto Serif SC
+    class U,P,M,XLS,LARK,DEF d
+    class PDF hit
+    class NEXT next
+    </div>
+    <div class="figure-caption"><b>Fig. I</b> the matching gate · 命中的那一扇门</div>
+  </div>
+
+  <h3><span class="cn">PDF skill 的 description 是怎么写的</span></h3>
+
+  <p>这是 PDF skill 实际的 description（节选）。注意它<strong>不是抽象介绍</strong>，而是把所有可能触发它的<strong>具体动词</strong>都列了一遍：</p>
+
+  <pre class="specimen" data-label="SKILL.md · frontmatter">Use this skill whenever the user wants to do anything
+with PDF files. This includes <strong>reading or extracting</strong>
+text/tables from PDFs, <strong>combining or merging</strong> multiple
+PDFs into one, <strong>splitting</strong> PDFs apart, <strong>rotating</strong>
+pages, adding <strong>watermarks</strong>, creating new PDFs,
+<strong>filling PDF forms</strong>, <strong>encrypting/decrypting</strong> PDFs,
+extracting <strong>images</strong>, and <strong>OCR</strong> on scanned PDFs...
+If the user mentions a .pdf file or asks to produce one,
+use this skill.</pre>
+
+  <div class="callout">
+    <span class="head">Lesson · 启示</span>
+    <span class="cn"><strong>description 不能写成"这是一个 PDF 工具"</strong>。AI 用关键词匹配，所以你必须把所有可能触发它的具体动词都列出来——读、合并、拆分、旋转、水印、填表单、加密、OCR……动词越穷尽，命中率越高。</span>
+  </div>
+</section>
+
+<!-- ===================== CH 2 ===================== -->
+<section class="chapter" id="ch-2">
+  <div class="chapter-head">
+    <div class="chapter-num">II</div>
+    <div class="chapter-title">
+      <span class="lbl">Folio 03 · Layer Two</span>
+      <h2>The Index · <span class="cn">读取 SKILL.md</span></h2>
+    </div>
+  </div>
+
+  <p>skill 匹配成功后，AI <strong>整篇读完 SKILL.md</strong>（约 300 行）。但它读的目的不是"<span class="cn">学习 PDF 知识</span>"——而是在脑子里建立<strong>三张索引</strong>：</p>
+
+  <div class="figure">
+    <div class="mermaid">
+flowchart TB
+    R[读完<br/>SKILL.md] --> T{建立<br/>三张索引}
+    T --> I1[索引 1<br/>能力清单<br/><i>能做什么</i>]
+    T --> I2[索引 2<br/>代码模板<br/><i>每件事怎么写</i>]
+    T --> I3[索引 3<br/>跳转规则<br/><i>什么时候读别的文件</i>]
+
+    I1 --> E1["合并 → pypdf<br/>提表格 → pdfplumber<br/>OCR → pytesseract"]
+    I2 --> E2["看到'合并'即想起<br/>writer.add_page(page)"]
+    I3 --> E3["'填表单' ▸ 读 forms.md<br/>'高级特性' ▸ 读 reference.md"]
+
+    classDef d fill:#ebe2cb,stroke:#1a1612,color:#1a1612,font-family:Noto Serif SC
+    classDef key fill:#ecdfb6,stroke:#a87f2c,stroke-width:1.6px,color:#1a1612,font-family:Noto Serif SC
+    class R,T,I1,I2,E1,E2 d
+    class I3,E3 key
+    </div>
+    <div class="figure-caption"><b>Fig. II</b> three indices · 三张索引中，第三张最关键</div>
+  </div>
+
+  <h3><span class="cn">索引 3 是最关键的</span></h3>
+
+  <p>SKILL.md 里有几句话是<strong>路由指令</strong>。AI 必须严格执行，不能略过：</p>
+
+  <table class="ledger">
+    <thead>
+      <tr><th>SKILL.md 原文</th><th>AI 的理解</th><th>触发动作</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="cn">"For advanced features... see REFERENCE.md"</span></td>
+        <td><span class="cn">目录指针，遇到高级任务才读</span></td>
+        <td><span class="cn">暂不读，记下来</span></td>
+      </tr>
+      <tr>
+        <td><span class="cn">"If you need to fill out a PDF form, <strong>read FORMS.md and follow its instructions</strong>"</span></td>
+        <td><span class="cn">强制指令，填表单必须先读</span></td>
+        <td><span class="cn">立即跳转 forms.md</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout moss">
+    <span class="head">Marginalia · 旁注</span>
+    <span class="cn"><strong>这就是为什么 SKILL.md 不必把所有细节写完。</strong>它只需做三件事：① 让 AI 知道<strong>有什么能力</strong>；② 给<strong>最常用的快速代码</strong>；③ 把<strong>复杂分支</strong>甩到子文档。AI 读完 SKILL.md 是"看完地图"，不是"看完百科全书"。</span>
+  </div>
+</section>
+
+<!-- ===================== CH 3 ===================== -->
+<section class="chapter" id="ch-3">
+  <div class="chapter-head">
+    <div class="chapter-num">III</div>
+    <div class="chapter-title">
+      <span class="lbl">Folio 04 · Layer Three</span>
+      <h2>The Routing · <span class="cn">任务分流</span></h2>
+    </div>
+  </div>
+
+  <p>AI 现在已经读完 SKILL.md，回到用户的原始请求，开始<strong>分流</strong>。这一层的本质是：<em>把用户的自然语言请求，对应到 SKILL.md 里的某个章节或跳转指令</em>。</p>
+
+  <div class="figure">
+    <div class="mermaid">
+flowchart TD
+    S([用户请求 · 已读完 SKILL.md]) --> Q{用户具体<br/>要做什么？}
+    Q -->|读文字 / 提表格| A[路径 A · 直接写代码]
+    Q -->|合并 / 拆分 / 旋转| B[路径 B · 直接写代码]
+    Q -->|加水印 / 加密| C[路径 C · 查 Quick Reference 表]
+    Q -->|OCR 扫描件| D[路径 D · pytesseract 方案]
+    Q -->|创建新 PDF| F[路径 F · reportlab]
+    Q -->|高级 / 疑难| G[路径 G · 读 reference.md]
+    Q -->|填 PDF 表单| E[路径 E · 必须读 forms.md]
+
+    A --> Xa[pdfplumber.open]
+    B --> Xb[pypdf · Writer]
+    C --> Xc[套表格里的示例]
+    D --> Xd[convert_from_path<br/>+ image_to_string]
+    F --> Xf[Canvas / Platypus]
+    G --> Xg[查 reference.md 章节]
+    E --> Xe[加载 forms.md<br/>进入第 IV 层]
+
+    classDef d fill:#ebe2cb,stroke:#1a1612,color:#1a1612,font-family:Noto Serif SC
+    classDef deep fill:#efd9cd,stroke:#8a2818,stroke-width:1.6px,color:#1a1612,font-family:Noto Serif SC
+    class S,Q,A,B,C,D,F,G,Xa,Xb,Xc,Xd,Xf,Xg d
+    class E,Xe deep
+    </div>
+    <div class="figure-caption"><b>Fig. III</b> seven routes · 七条分流路径，仅最后一条会下到第四层</div>
+  </div>
+
+  <h3><span class="cn">分流时的"隐藏判断"</span></h3>
+  <p>除了"做什么操作"，AI 还在分流时考虑几个不出声的隐藏因素：</p>
+
+  <table class="ledger">
+    <thead><tr><th>隐藏判断</th><th>影响的分流</th></tr></thead>
+    <tbody>
+      <tr><td><span class="cn">是文字版还是扫描版？</span></td><td><span class="cn">扫描版 → 强制走 OCR，不能直接 extract_text</span></td></tr>
+      <tr><td><span class="cn">文件多大？多少页？</span></td><td><span class="cn">大文件 → 分批处理；超大 → 提前警告</span></td></tr>
+      <tr><td><span class="cn">"读出来"还是"改"它？</span></td><td><span class="cn">只读 → pdfplumber；改 → pypdf Writer</span></td></tr>
+      <tr><td><span class="cn">有没有提到密码？</span></td><td><span class="cn">有 → qpdf decrypt 分支</span></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<div class="asterism">✶ ✶ ✶</div>
+
+<!-- ===================== CH 4 ===================== -->
+<section class="chapter" id="ch-4">
+  <div class="chapter-head">
+    <div class="chapter-num">IV</div>
+    <div class="chapter-title">
+      <span class="lbl">Folio 05 · Layer Four</span>
+      <h2>The Descent · <span class="cn">深度执行</span></h2>
+    </div>
+  </div>
+
+  <p>大多数 PDF 任务在第三层就直接执行了。但<strong>填表单</strong>是个例外——它复杂到 SKILL.md 装不下，必须深入到 <code class="inline">forms.md</code> + 八个脚本。这一层是<strong>整个 skill 设计最精巧的部分</strong>。</p>
+
+  <div class="figure">
+    <div class="mermaid">
+flowchart TD
+    E([用户：帮我填这个表单]) --> R[读 forms.md]
+    R --> S1[Step 1 · 检测表单类型]
+    S1 --> X1[运行<br/>check_fillable_fields.py]
+    X1 --> D{有<br/>AcroForm<br/>可填字段？}
+
+    D -->|是 · Fillable| B1[分 支 一<br/>标准填法]
+    D -->|否 · 扁平 PDF| B2[分 支 二<br/>标注覆盖法]
+
+    B1 --> B1a[extract_form_field_info.py<br/><i>抽字段 ID / 坐标 / 类型</i>]
+    B1a --> AI1((AI 判断<br/>每字段填什么))
+    AI1 --> B1b[fill_fillable_fields.py<br/><i>写入字段</i>]
+    B1b --> End1([完成])
+
+    B2 --> B2a[convert_pdf_to_images.py<br/><i>转图给 AI 看</i>]
+    B2a --> B2b[extract_form_structure.py<br/><i>抽标签 / 横线 / 方框</i>]
+    B2b --> B2c[check_bounding_boxes.py<br/><i>校验框是否合理</i>]
+    B2c --> B2d[create_validation_image.py<br/><i>画框给 AI 再看一次</i>]
+    B2d --> AI2((AI 判断<br/>每空格填什么))
+    AI2 --> B2e[fill_pdf_form_with_annotations.py<br/><i>FreeText 写入</i>]
+    B2e --> End2([完成])
+
+    classDef d fill:#ebe2cb,stroke:#1a1612,color:#1a1612,font-family:Noto Serif SC
+    classDef b1 fill:#d4d9bf,stroke:#4a5d3a,stroke-width:1.4px,color:#1a1612,font-family:Noto Serif SC
+    classDef b2 fill:#ecdfb6,stroke:#a87f2c,stroke-width:1.4px,color:#1a1612,font-family:Noto Serif SC
+    classDef aij fill:#efd9cd,stroke:#8a2818,stroke-width:2px,color:#1a1612,font-family:Noto Serif SC
+
+    class E,R,S1,X1,D,End1,End2 d
+    class B1,B1a,B1b b1
+    class B2,B2a,B2b,B2c,B2d,B2e b2
+    class AI1,AI2 aij
+    </div>
+    <div class="figure-caption"><b>Fig. IV</b> the descent · 红圆为 AI 判断节点；其余皆为脚本</div>
+  </div>
+
+  <h3><span class="cn">这一层的核心模式：AI 判断 + 脚本执行</span></h3>
+
+  <p>注意上图里所有<span style="color:var(--accent);font-weight:500;">红色圆形节点</span>都是"AI 判断"，其余都是"脚本执行"。它们交替出现，形成 skill 的核心模式：</p>
+
+  <div class="figure">
+    <div class="mermaid">
+flowchart LR
+    A[脚本 · 客观抽取<br/>字段 ID / 坐标 / 文字] --> B((AI · 主观理解<br/>这个字段该填什么))
+    B --> C[脚本 · 精确写入<br/>处理坐标 / 字体]
+    C --> D[脚本 · 校验输出<br/>有没有写歪 / 写错]
+
+    classDef s fill:#ebe2cb,stroke:#1a1612,color:#1a1612,font-family:Noto Serif SC
+    classDef j fill:#efd9cd,stroke:#8a2818,stroke-width:2px,color:#1a1612,font-family:Noto Serif SC
+    class A,C,D s
+    class B j
+    </div>
+    <div class="figure-caption"><b>Fig. IV-b</b> the rhythm · 机械 → 语义 → 机械 → 机械</div>
+  </div>
+
+  <div class="callout">
+    <span class="head">Lesson · 启示</span>
+    <p style="margin:0 0 8px;"><span class="cn"><strong>为什么这样设计？</strong></span></p>
+    <p style="margin:0 0 8px;"><span class="cn">① <strong>脚本能做的就别让 AI 做</strong>——抽坐标、转格式、检查重叠是机械活，AI 临时写代码容易在小数点和坐标系上出错；</span></p>
+    <p style="margin:0 0 8px;"><span class="cn">② <strong>AI 能做的就别写死在脚本里</strong>——"这个空格旁边写着'出生日期'，所以应填生日"这种语义判断脚本做不了；</span></p>
+    <p style="margin:0;"><span class="cn">③ <strong>两者交替出现</strong>，每一步的输出都是下一步的输入，AI 不会跑偏。</span></p>
+  </div>
+</section>
+
+<!-- ===================== CH 5 ===================== -->
+<section class="chapter" id="ch-5">
+  <div class="chapter-head">
+    <div class="chapter-num">V</div>
+    <div class="chapter-title">
+      <span class="lbl">Folio 06 · In Reverse</span>
+      <h2>Lessons · <span class="cn">设计启示</span></h2>
+    </div>
+  </div>
+
+  <p>把这四层<strong>倒过来看</strong>，就能反推出"怎么写一个 AI 用得顺的 skill"。每一层对应一条设计原则。</p>
+
+  <div class="figure">
+    <div class="mermaid">
+flowchart LR
+    L1[第 I 层<br/>触发匹配] --> R1[描述要列穷动词<br/>读 · 合并 · 拆分 · 水印 · OCR]
+    L2[第 II 层<br/>读 SKILL.md] --> R2[SKILL.md 只放三样<br/>能力 · 模板 · 跳转]
+    L3[第 III 层<br/>任务分流] --> R3[章节标题就是任务名<br/>合并 · OCR · 加密]
+    L4[第 IV 层<br/>深度执行] --> R4[复杂分支拆到子文档<br/>AI 判断 + 脚本执行]
+
+    classDef l fill:#ebe2cb,stroke:#1a1612,color:#1a1612,font-family:Noto Serif SC
+    classDef r fill:#efd9cd,stroke:#8a2818,color:#1a1612,font-family:Noto Serif SC
+    class L1,L2,L3,L4 l
+    class R1,R2,R3,R4 r
+    </div>
+    <div class="figure-caption"><b>Fig. V</b> in reverse · 四条原则，分别对应四层</div>
+  </div>
+
+  <h3><span class="cn">常见错误对照</span></h3>
+
+  <table class="ledger">
+    <thead>
+      <tr><th>常见错误</th><th>卡在哪一层</th><th>正确做法</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="cn">description 只写"PDF utility"</span></td>
+        <td><span class="cn">第 I 层匹配不上</span></td>
+        <td><span class="cn">列出所有可能触发的动词</span></td>
+      </tr>
+      <tr>
+        <td><span class="cn">SKILL.md 写成 5000 行的百科</span></td>
+        <td><span class="cn">第 II 层读不准</span></td>
+        <td><span class="cn">核心章节 + 子文档跳转</span></td>
+      </tr>
+      <tr>
+        <td><span class="cn">章节用 "Section 1, Section 2"</span></td>
+        <td><span class="cn">第 III 层对不上号</span></td>
+        <td><span class="cn">用任务名做标题</span></td>
+      </tr>
+      <tr>
+        <td><span class="cn">所有逻辑都塞在 SKILL.md</span></td>
+        <td><span class="cn">第 IV 层临时写代码出错</span></td>
+        <td><span class="cn">机械活拆成脚本</span></td>
+      </tr>
+      <tr>
+        <td><span class="cn">子文档间没清晰跳转</span></td>
+        <td><span class="cn">第 II / IV 层不知何时读</span></td>
+        <td><span class="cn">用 "If X, read Y.md"</span></td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<div class="asterism">✶ ✶ ✶</div>
+
+<!-- ===================== ENVOI ===================== -->
+<section class="chapter">
+  <div class="chapter-head">
+    <div class="chapter-num">—</div>
+    <div class="chapter-title">
+      <span class="lbl">Envoi · 结 语</span>
+      <h2><span class="cn">一 句 话 总 结</span></h2>
+    </div>
+  </div>
+
+  <blockquote class="pull">
+    <span class="cn">AI 用 PDF skill 不是"看 → 抄"，而是</span><em>匹配 · 索引 · 分流 · 调用</em>。<br><span class="cn">skill 写得好不好，看的就是这四层每一层 AI 能不能</span><em>顺畅地往下走</em>。
+    <cite>— Skill 拆解, Vol. I</cite>
+  </blockquote>
+</section>
+
+<!-- ===================== COLOPHON ===================== -->
+<footer class="colophon">
+  <div class="colophon-orn">❦</div>
+  Set in <b>Fraunces</b> (Display), <b>Spectral</b> (Body), <b>Noto Serif SC</b> (中文), <b>JetBrains Mono</b> (Code).<br>
+  Diagrams rendered via Mermaid · Themed in oxblood, ochre, moss on warm cream.<br>
+  Skill 拆解 · 卷 一 · MMXXVI
+</footer>
+
+</main>
+
+<!-- ===================== MARGINALIA ===================== -->
+<aside class="margin">
+  <div class="note">
+    <span class="lbl">a note on layers</span>
+    <span class="cn">四层不是流水线，而是<em>下行结构</em>——每层可独立完成，复杂任务才一路下到底。</span>
+  </div>
+  <div class="note">
+    <span class="lbl">on description</span>
+    <span class="cn">第 I 层只看 description，不看 SKILL.md。所以 description 必须自带<em>触发词</em>。</span>
+  </div>
+  <div class="note">
+    <span class="lbl">on indices</span>
+    <span class="cn">SKILL.md 在 AI 脑中变成<em>三张索引</em>：能力 / 模板 / 跳转。第三张最被低估。</span>
+  </div>
+  <div class="note">
+    <span class="lbl">on routing</span>
+    <span class="cn">章节标题就是<em>路由表</em>——用"合并 PDF"而非"Section 3"。</span>
+  </div>
+  <div class="note">
+    <span class="lbl">on the descent</span>
+    <span class="cn">"AI 判断 + 脚本执行"的交替节奏，是整套 skill 设计哲学的核心。</span>
+  </div>
+  <div class="note">
+    <span class="lbl">on writing skills</span>
+    <span class="cn">所有设计原则都能从这四层<em>反推</em>出来——不必凭空想。</span>
+  </div>
+</aside>
+
+</div>
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    themeVariables: {
+      background: '#ebe2cb',
+      primaryColor: '#ebe2cb',
+      primaryBorderColor: '#1a1612',
+      primaryTextColor: '#1a1612',
+      lineColor: '#3a322a',
+      secondaryColor: '#efd9cd',
+      tertiaryColor: '#ecdfb6',
+      fontFamily: '"Noto Serif SC","Spectral","Fraunces",serif',
+      fontSize: '14px',
+      edgeLabelBackground: '#ebe2cb',
+      clusterBkg: '#e6dcc4',
+      clusterBorder: '#1a1612'
+    },
+    flowchart: {
+      curve: 'basis',
+      padding: 18,
+      nodeSpacing: 38,
+      rankSpacing: 50,
+      htmlLabels: true
+    }
+  });
+</script>
+
+</body>
+</html>
