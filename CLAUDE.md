@@ -21,6 +21,7 @@
 > ② **写过一个** · 但觉得自己的 SKILL.md 太长 / 难维护 / AI 用不顺
 > ③ **想换个视角** · 想看 AI 是怎么读 skill 的
 > ④ **想审计自己的 skill** · 已经有一个，想看哪些地方能改
+> ⑤ **只要省流版** · 不想完整学，把原则一键装到我自己 AI 的全局配置里
 >
 > 我会根据你的答案带你走对应路径。也可以告诉我你的具体场景。
 
@@ -28,7 +29,7 @@
 
 ---
 
-## 四条路径
+## 五条路径
 
 ### ① 入门 · `skill-scripts-references-guide.html`
 
@@ -73,6 +74,19 @@
 | 有没有把 AI 该判断的塞进脚本？ | 主指南 · Ch 09 | 语义判断留给 AI |
 
 每项出 **通过 / 改进建议**，最后给一份**重构路线图**——不超过 5 步，每步说清"做什么 / 产出什么文件"。
+
+### ⑤ 省流版安装 · `.agents/skills/distill-skill-design/` skill
+
+学习者要"快进"——不想看完三件 HTML，只想把原则装到自己 AI 里。此时**调用 `.agents/skills/distill-skill-design/` skill**：
+
+1. 先读 `.agents/skills/distill-skill-design/SKILL.md`，按它的流程做：
+   - 跑 `.agents/skills/distill-skill-design/scripts/detect_target.py` 检测 `~/.claude/CLAUDE.md` 和 `~/.codex/AGENTS.md` 的状态。
+   - 把两个候选的**完整路径 + 当前状态**摆给用户看，让他选一个。**不要替他选**——即使只有一个存在也要确认。
+   - 拿到用户选择后跑 `.agents/skills/distill-skill-design/scripts/install_tldr.py <目标> .agents/skills/distill-skill-design/references/skill-design-tldr.md`。
+   - 复述脚本返回的 action（created / appended / replaced）。
+2. **不要直接把 TL;DR 内容复制到对话里**——让脚本写文件，不要让 AI 临时手写。
+3. **写完之后建议学习者**：要么直接收工，要么"既然装了原则，要不要再回头完整读三件 HTML"——让他自己选，别强推。
+4. **Windows 用户**：如果 `python3` 不在 PATH，建议改用 `python` 或 `py -3`。脚本本身已经跨平台，不需要改代码。
 
 ---
 

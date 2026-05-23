@@ -26,7 +26,26 @@ cd skill-example
 claude
 ```
 
-然后说一句"我想学 skill 设计"。Claude 会读 [`CLAUDE.md`](./CLAUDE.md)、问你的起点，然后按四条路径之一牵着你过——读 HTML、做练习、最后审计你自己的 skill。
+然后说一句"我想学 skill 设计"。Claude 会读 [`CLAUDE.md`](./CLAUDE.md)、问你的起点，然后按五条路径之一牵着你过——读 HTML、做练习、最后审计你自己的 skill。
+
+### 路径 C · 只要省流版（TL;DR 一键装到你的 AI）
+
+不想完整学，只想把"skill 怎么设计才好用"压成一份原则清单，**写到你自己 AI 的全局配置**里？仓库里有个 [`.agents/skills/distill-skill-design/`](./.agents/skills/distill-skill-design/) skill 专门做这件事。
+
+```bash
+cd skill-example
+claude
+```
+
+说"我想装省流版"，Claude 会读 `.agents/skills/distill-skill-design/SKILL.md`：
+
+1. 跑 `.agents/skills/distill-skill-design/scripts/detect_target.py` 检测你的全局配置文件（`~/.claude/CLAUDE.md` 或 `~/.codex/AGENTS.md`）
+2. 问你想写到哪一个
+3. 把 [`references/skill-design-tldr.md`](./.agents/skills/distill-skill-design/references/skill-design-tldr.md) 用标记块写进去（重复跑只会替换块内内容，不会重复追加）
+
+**Windows 用户可用**——脚本走 `pathlib.Path.home()`，不依赖 `~` 展开，路径在 macOS / Linux / Windows 上行为一致。如果 `python3` 不在 PATH，用 `python` 或 `py -3`。
+
+装完之后你每次开 AI 都会带着这套原则，不用每次重新讲。
 
 ## 仓库结构
 
@@ -37,6 +56,7 @@ claude
 | `AI读取PDF-skill思考路径.html` | AI 视角的四层思考路径 |
 | `pdf/` | Anthropic 官方 PDF skill（成熟样板） |
 | `lark-bugs-assigned-to-me/` | 单文件 skill（重构前样板，值已脱敏） |
+| `.agents/skills/distill-skill-design/` | 一键把省流版原则写到你 AI 全局配置的 skill（含 2 个跨平台 Python 脚本） |
 | `skill-scripts-references-breakdown.md` | 主指南的原始拆解笔记 |
 | `pdf-skill-script-breakdown.md` | PDF skill 脚本职责拆解笔记 |
 | [`CLAUDE.md`](./CLAUDE.md) · [`AGENTS.md`](./AGENTS.md) | 给 AI 导师用的指令 |
